@@ -1,0 +1,9 @@
+.cache/
+*.o
+*.elf
+*.bin
+*.d
+build/
+
+# Apple 参考二进制（仅分析用，绝不入库）
+.cache/

@@ -1,0 +1,1 @@
+savedcmd_s2power.ko := ld -r -m elf_x86_64 -z noexecstack --no-warn-rwx-segments --build-id=sha1  -T /usr/src/linux-headers-7.0.0-38-generic/scripts/module.lds -o s2power.ko s2power.o s2power.mod.o .module-common.o

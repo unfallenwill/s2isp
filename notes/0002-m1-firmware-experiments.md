@@ -166,3 +166,62 @@ cd fw && make
 # 复位 + 加载我们的固件 + 观察
 sudo tools/recover-camera.sh --fw fw/s2isp.bin
 ```
+
+---
+
+## 0003 — ACPI 电源周期：找到了，但它单独不够用
+
+### DSDT 里的电源序列
+
+反编译 DSDT 找到（`iasl -d`）：
+
+```c
+Name (S2PM, 0x02)
+Method (CMPE, 1, Serialized)
+{
+    If (Arg0 == 0x01) {         /* 断电 */
+        GD45 = 0x01;
+        \_SB.PCI0.RP02.ASPM = S2PM;      /* 2 */
+        \_SB.PCI0.RP02.PSTA = 0x00;
+        While (\_SB.PCI0.RP02.PSTA != 0x00) { Sleep (0x01); }
+        ... 等待 LACT == 1 ...
+        L23D = 0x01;                    /* 切断 L2/L3 链路 */
+        LEDM = 0x00;
+    } Else {                      /* 上电 */
+        \_SB.PCI0.RP02.CMRA.DPST = 0x03;
+        While (DPST != 0x03) { Sleep (0x01); }
+        If (SLTP == 0x00) { L23E = 0x01; LEDM = 0x01; }
+        \_SB.PCI0.RP02.PSTA = 0x03;
+        While (PSTA != 0x03) { Sleep (0x01); }
+        S2PM = \_SB.PCI0.RP02.ASPM;
+        \_SB.PCI0.RP02.ASPM = 0x00;
+        GP45 = 0x00; GD45 = 0x00;
+    }
+}
+```
+
+路径 `\_SB.PCI0.RP02.CMRA.CMPE`。与 Apple kext 的
+`AppleCamIn::acpiControlS2ChipPower()` 同一条路径。
+
+已实现为 `driver/s2power.c`（`acpi_execute_simple_method` 调用 CMPE）。
+
+### 但单独用它不够
+
+执行 CMPE(1) → CMPE(0) 之后：
+
+- PCIe 链路断开，**设备从总线消失**
+- 重新枚举（`/sys/bus/pci/rescan`、根端口 remove+rescan）**都救不回来**
+- 只有整机重启才能恢复
+
+原因：Apple 在睡眠/唤醒时用这条路径，是因为**同时会重初始化整条 PCIe 链路**；
+Linux 侧没有这个配套动作。
+
+⇒ **结论：我们的驱动不能单独做 ACPI 电源周期。**
+真正的解法是找到 **ISP CPU 自身的复位寄存器**——而那又需要先知道寄存器基址（循环依赖）。
+
+⇒ **打破循环的办法**：用**写**代替**读**做定位（见 0004）。
+
+### 实验纪律
+
+由于 ISP CPU 无法在不重启的情况下复位，**每次实验之间需要整机重启**。
+`tools/exp-next.sh` 把一轮实验打包成一条命令，便于重启后立刻执行。

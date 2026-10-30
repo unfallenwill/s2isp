@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#define REG_OFF_PROBE	0xc3018u	/* 无害的 FW 控制寄存器 */
+#define REG_OFF_PROBE	0x40004u	/* BAR 内的可写寄存器（主机写 1 来启动 ISP） */
 
 #define DDR_OUT		0x00080000u	/* 输出区 = DDR 偏移 0x80000 */
 #define PATTERN_BASE	0xc0de0000u

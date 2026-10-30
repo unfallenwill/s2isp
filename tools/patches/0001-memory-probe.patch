@@ -1,0 +1,11 @@
+--- a/fthd_isp.c
++++ b/fthd_isp.c
+@@ isp_mem_init(): 打印 DDR 根资源与固件分配位置
+ 	dev_priv->firmware = isp_mem_create(dev_priv, FTHD_MEM_FIRMWARE,
+ 					    FTHD_MEM_FW_SIZE);
++	pr_info("PROBE: DDR root start=0x%llx end=0x%llx\n",
++		(unsigned long long)root->start, (unsigned long long)root->end);
++	if (dev_priv->firmware)
++		pr_info("PROBE: firmware offset=0x%x size_aligned=0x%x size=0x%llx\n",
++			dev_priv->firmware->offset, dev_priv->firmware->size_aligned,
++			(unsigned long long)dev_priv->firmware->size);

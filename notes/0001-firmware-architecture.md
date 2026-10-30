@@ -18,7 +18,8 @@
 | 5 | **MMU 关闭** → 固件用物理地址 | 高（启动代码清 SCTLR.V） |
 | 6 | 命令表 411 项，**opcode = id − 1** | 高（10/10 运行时交叉验证） |
 | 7 | 启动握手共 5 阶段，可完整复现 | 高（寄存器序列 + 日志） |
-| 8 | ISP 处理很可能是**定功能硬件 + 固件下发系数** | 中（命令集形态推断，**待验证**） |
+| 8 | **固件链接在地址 0，从 DDR 偏移 0 启动**，ISP CPU 与主机共用 DDR 偏移编号 | 高（真机探针实测） |
+| 9 | ISP 处理很可能是**定功能硬件 + 固件下发系数** | 中（命令集形态推断，**待验证**） |
 
 ---
 
@@ -188,7 +189,43 @@ M1/M3 的实验设计都以验证这条假设为目的。
 
 ---
 
-## 7. 复现方式
+## 7. 真机探针：内存布局（已实测）
+
+在 `isp_mem_init()` 里插探针重新编译加载，得到：
+
+```
+PROBE: DDR root start=0x90000000 end=0x9fffffff
+PROBE: firmware offset=0x0 size_aligned=0x7fffff size=0x800000
+```
+
+结论：
+
+- DDR 根资源 = BAR2 物理 `0x90000000`，256MB
+- **固件被放在 DDR 偏移 0**（驱动强制 `firmware->base.start == mem->start`）
+- **通道表地址 `0x00800000` 是 DDR 偏移**，主机直接用 `s2_mem + 0x800000` 读，
+  → **ISP CPU 与主机共用同一套 DDR 偏移编号**，无需转换
+- `0x00800000` 恰好是固件 8MB 预留区的顶端 → 固件把自己的通道表放在自己
+  内存区的顶部
+- 固件镜像里 `0x90000000` 出现 188 次 → 固件确实用物理地址访问 DDR
+
+### 探针方法
+
+```bash
+# 在 isp_mem_init() 里加 pr_info
+make -C /lib/modules/$(uname -r)/build M=$PWD modules
+sudo modprobe -r facetimehd
+# 注意: 卸载 facetimehd 会连带卸掉 videobuf2，insmod 前要手动补回
+sudo modprobe videobuf2_common videobuf2_memops videobuf2_v4l2 videobuf2_dma_sg videodev
+sudo insmod ./facetimehd.ko
+dmesg | grep PROBE
+```
+
+坑：直接 `insmod` 会报 `Unknown symbol vb2_fop_mmap`，
+因为 `modprobe -r` 把 videobuf2 一起卸了，而 insmod 不会自动加载依赖。
+
+---
+
+## 8. 复现方式
 
 ```bash
 tools/fetch-reference-firmware.sh        # 取参考固件到 .cache/（不入库）

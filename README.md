@@ -122,12 +122,35 @@ CISP_CMD_APPLE_CH_AWB_HISTOGRAM_WEIGHT_SET
 ## 目录
 
 ```
-docs/       设计文档、协议规格、逆向笔记
-fw/         自研 ISP 固件（ARM）
-driver/     自研主机驱动
-tools/      分析与构建工具
-notes/      原始实验记录
+docs/
+  PLAN.md                    项目计划：目标、成功标准、验证协议、里程碑与闸门
+  isp-boot-protocol.md       启动握手五阶段规格（寄存器级）
+  isp-commands.md            411 条命令完整表（自动生成）
+tools/
+  fw-analyze.py              固件分析器
+  check.sh                   里程碑验收脚本
+  fetch-reference-firmware.sh 取参考固件供分析（.cache/，不入库）
+  patches/                   真机探针补丁
+fw/                          自研 ISP 固件（ARM）      ← M1 起
+driver/                      自研主机驱动              ← M2 起
+notes/                       侦察结论与复现命令
 ```
+
+---
+
+## 当前状态
+
+| 里程碑 | 状态 |
+|---|---|
+| M0 工具链与规格 | ✅ 通过（`tools/check.sh m0`） |
+| M1 自研固件启动 | 🔶 前期研究完成，固件未开始写 |
+| M2–M6 | ⬜ 未开始 |
+
+**M1 首要问题**：ISP CPU 用什么地址访问 ISP BAR4 的寄存器（主机物理 `0xb0800000`）。
+已知 MMU 关闭、固件用物理地址访问 DDR（`0x90000000`），
+但镜像里找不到 BAR 基址常量 —— 需靠实验确定。
+
+详见 [`docs/PLAN.md`](docs/PLAN.md) 与 [`notes/`](notes/)。
 
 ---
 
@@ -142,3 +165,6 @@ notes/      原始实验记录
 ## 许可
 
 GPL-2.0-only
+
+> 注：`.cache/` 下会存放 Apple 的参考固件镜像，仅用于**分析硬件接口**，
+> 已 gitignore，不会进入任何发布产物。最终交付物中不含任何 Apple 二进制。

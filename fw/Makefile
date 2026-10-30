@@ -2,7 +2,7 @@
 #
 # fw/Makefile — 自研 ISP 固件
 #
-# 目标：ARM 二进制，运行在 S2 芯片的 ISP 处理器上。
+# 目标: ARM 二进制，运行在 S2 芯片的 ISP 处理器上。
 # 链接地址 0 —— 固件被加载到 DDR 偏移 0（实测确认）。
 #
 
@@ -13,20 +13,21 @@ OBJDUMP := $(CROSS)objdump
 SIZE    := $(CROSS)size
 
 TARGET   := s2isp
-SRC      := probe.S
+SRCS     := start.S main.c
 
-# 位置无关：代码里所有本地符号用 adr 取，绝对地址只用于刻意探测
-CFLAGS := -c -x assembler-with-cpp -march=armv7-a -marm \
-          -ffreestanding -fno-pic -nostdlib -Wall -Wextra
+CFLAGS := -O2 -march=armv7-a -marm \
+          -ffreestanding -fno-builtin -fno-stack-protector \
+          -fno-pic -nostdlib -Wall -Wextra \
+          -fno-asynchronous-unwind-tables
 
-LDFLAGS := -Ttext=0 -Tdata=0 -nostdlib -Wl,--build-id=none
+LDFLAGS := -T s2isp.ld -nostdlib -Wl,--build-id=none -Wl,-z,noexecstack
 
-.PHONY: all clean probe disasm
+.PHONY: all clean probe disasm size
 
 all: $(TARGET).bin
 
-$(TARGET).elf: $(SRC)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
+$(TARGET).elf: $(SRCS) s2isp.ld
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(SRCS)
 	$(SIZE) $@
 
 # ISP CPU 需要的是裸二进制
@@ -36,11 +37,14 @@ $(TARGET).bin: $(TARGET).elf
 probe: $(TARGET).bin
 	@echo "=== 固件大小 ==="
 	@ls -l $(TARGET).bin
-	@echo "=== 前 16 字节 ==="
-	@$(OBJDUMP) -D -b binary -m arm $(TARGET).bin | head -20
+	@echo "=== 向量表 ==="
+	@$(OBJDUMP) -D -b binary -m arm $(TARGET).bin | head -12
 
 disasm: $(TARGET).elf
 	$(OBJDUMP) -d $<
+
+size: $(TARGET).elf
+	$(SIZE) -A $<
 
 clean:
 	rm -f $(TARGET).elf $(TARGET).bin
